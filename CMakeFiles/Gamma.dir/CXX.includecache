@@ -1,0 +1,20 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/home/jaeyoungyu/gamma/Gamma/Ast.cpp
+Gamma.h
+/home/jaeyoungyu/gamma/Gamma/Gamma.h
+
+/home/jaeyoungyu/gamma/Gamma/LLparser.cpp
+Gamma.h
+/home/jaeyoungyu/gamma/Gamma/Gamma.h
+
+/home/jaeyoungyu/gamma/Gamma/lexer.cpp
+Gamma.h
+/home/jaeyoungyu/gamma/Gamma/Gamma.h
+
