@@ -30,8 +30,7 @@
 #include "llvm/Support/DynamicLibrary.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetMachine.h"
-// standard library ==============================================================
-
+// standard library ================================================================
 #include<iostream>
 #include<stdlib.h>
 #include<ctype.h>
@@ -41,29 +40,50 @@
 #include<stack>
 #include<list>
 #include<memory>
+// Symboltable.cpp =================================================================
+class symbol_table{
+    std::vector<std::string>symbol_list;
+    std::map<std::string,int>symbol_tree;
+public:
+    void insert(std::string str,int token_type){
+        symbol_list.push_back(str);
+        symbol_tree.insert(std::pair<std::string,int>(str,token_type));
+    }
+    int lookup(std::string str){
+        if(symbol_tree[str]){
+            return 1;
+        }
+        return 0;
+    }
+    std::vector<std::string> get_vector(){
+        return symbol_list;
+    }
+};
 
-// lexer.c =======================================================================
+extern symbol_table Symbol_table;    
+
+// lexer.cpp =======================================================================
 
 enum token_type {
-        T_NULL = -1,T_void, T_int, T_char, T_return, T_if, T_else, T_while,T_def, // Keyword
-            T_assign, T_add, T_sub, T_mul, T_div, T_mod, T_equal, T_notequal,   // operation
-                T_const, T_variable, // const,variable
-                    T_lbrace, T_rbrace, T_lbracket, T_rbracket, T_lparen, T_rparen, // { , } , [ , ] , ( , )
-                        T_peroid, // , 
-                            T_semicolon, // ;
-                                T_eof, // END of file
-                                    T_stmt,T_expr,T_term,T_form
+    T_NULL = -1,T_void, T_int, T_char, T_return, T_if, T_else, T_while,T_def, // Keyword
+    T_assign, T_add, T_sub, T_mul, T_div, T_mod, T_equal, T_notequal,   // operation
+    T_const, T_variable, // const,variable
+    T_lbrace, T_rbrace, T_lbracket, T_rbracket, T_lparen, T_rparen, // { , } , [ , ] , ( , )
+    T_peroid, // , 
+    T_semicolon, // ;
+    T_eof, // END of file
+    T_stmt,T_expr,T_term,T_form
 };
 
 struct token {
-        int token_type;
-            struct token *next;
+    int token_type;
+    struct token *next;
 };
 
 struct symbol {
-        int datatype;
-            char *idNname;
-                struct symbol *next;
+    int datatype;
+    char *idNname;
+    struct symbol *next;
 };
 
 void initToken();
@@ -74,7 +94,8 @@ void isbraket(char ch);
 void isop(char aheadch, FILE *fp);
 void init_buffer();
 
-extern char buffer[32];
+extern std::string buffer;
+//extern char buffer[32];
 extern struct token *head;
 extern struct token *token_p;
 extern struct token *tail;
@@ -82,274 +103,114 @@ extern struct token *lookahead;
 
 // LLparser.cpp =====================================================================
 /* NODE Tree 
-   class node {
-    int token_type;
-        std::vector<node*> pointers;
-        public:
-            int getToken() {
-                    return token_type;
-                        }
-                            void setToken(int Token) {
-                                    token_type = Token;
-                                        }
-                                            void setunToken(int Token) {
-                                                    node *ptr = new node;
-                                                            ptr->setToken(Token);
-                                                                    this->pointers.push_back(ptr);
-                                                                        }
-                                                                            node *last_at() {
-                                                                                    return pointers.back();
-                                                                                        }
-                                                                                        };
-                                                                                        extern std::stack<node *> _stack;
-                                                                                        extern std::vector<node *> tree_vector;
-                                                                                        extern node *root;
-                                                                                        extern node *present_ptr;
-                                                                                        */
-void match(int terminal);
-void T();
-void F();
-void E();
-void LLparser();
-void parser_init();
-void S();
-int DT();
-
-// LRparser.cpp =======================================================================
-/*
-   class LRparser {
-    std::stack<int> parser_stack;
+class node {
+int token_type;
+    std::vector<node*> pointers;
     public:
-        int lookahead;
-            LRparser() {
-                    lookahead = head->token_type;
-                            token_p = head;
-                                }
-                                    void match(int n) {
-                                            if (n == parser_stack.top()) {
-                                                        parser_stack.pop();
-                                                                }
-                                                                        else {
-                                                                                    printf("LRparser match Error");
-                                                                                                exit(1);
-                                                                                                        }
-                                                                                                            }
-                                                                                                                void shift() {
-                                                                                                                        if (lookahead == T_eof)
-                                                                                                                                    return;
-                                                                                                                                            if (token_p->next) {
-                                                                                                                                                        parser_stack.push(token_p->token_type);
-                                                                                                                                                                    token_p = token_p->next;
-                                                                                                                                                                                printf("%d\n", token_p->token_type);
-                                                                                                                                                                                            lookahead = token_p->next->token_type;
-                                                                                                                                                                                                    }
-                                                                                                                                                                                                            else {
-                                                                                                                                                                                                                        printf("parser Error");
-                                                                                                                                                                                                                                    exit(1);
-                                                                                                                                                                                                                                            }
-                                                                                                                                                                                                                                                }
-                                                                                                                                                                                                                                                    void reduce() {
-                                                                                                                                                                                                                                                            switch (parser_stack.top()) {
-                                                                                                                                                                                                                                                                    case T_stmt:
-                                                                                                                                                                                                                                                                                parser_stack.pop();
-                                                                                                                                                                                                                                                                                            switch (lookahead) {
-                                                                                                                                                                                                                                                                                                        case T_int:
-                                                                                                                                                                                                                                                                                                                        parser_stack.push(T_variable); parser_stack.push(T_int);
-                                                                                                                                                                                                                                                                                                                                        break;
-                                                                                                                                                                                                                                                                                                                                                    case T_char:
-                                                                                                                                                                                                                                                                                                                                                                    parser_stack.push(T_variable); parser_stack.push(T_char);
-                                                                                                                                                                                                                                                                                                                                                                                    break;
-                                                                                                                                                                                                                                                                                                                                                                                                case T_variable:
-                                                                                                                                                                                                                                                                                                                                                                                                                parser_stack.push(T_variable);
-                                                                                                                                                                                                                                                                                                                                                                                                                                break;
-                                                                                                                                                                                                                                                                                                                                                                                                                                            case T_if:
-                                                                                                                                                                                                                                                                                                                                                                                                                                                            parser_stack.push(T_rparen); parser_stack.push(T_expr); parser_stack.push(T_lparen); parser_stack.push(T_if);
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                            break;
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        case T_while:
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        parser_stack.push(T_rparen); parser_stack.push(T_expr); parser_stack.push(T_lparen); parser_stack.push(T_while);
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        break;
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    default:
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    printf("LRparser Reduce Error");
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                }
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            break;
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    case T_expr:
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                parser_stack.pop();
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            switch (lookahead) {
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        case T_const:
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    case T_variable:
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    parser_stack.push(T_term);
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    break;
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                default:
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                printf("LRparser Reduce Error");
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            }
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        break;
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                case T_term:
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            parser_stack.pop();
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        switch (lookahead) {
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    case T_const:
-            case T_variable:
-                            parser_stack.push(T_form);
-                                            break;
-                                                        default:
-                                                                        printf("LRparser Reduce Error");
-                                                                                    }
-            break;
-                    case T_form:
-                                parser_stack.pop();
-                                            switch (lookahead) {
-                                                            case T_variable:
-                                                                                parser_stack.push(T_variable);
-                                                                                                break;
-                                                                                                            case T_const:
-                                                                                                                parser_stack.push(T_const);
-                                                                                                                                break;
-                                                                                                                                            default:
-                                                                                                                                                printf("LRparser Reduce Error");
-                                                                                                                                                            }
-            break;
-                    default:
-                                break;
-                                        }
-    }
-    void accept() {
-                if (parser_stack.top() == T_semicolon) {
-                                parser_stack.pop();
-                                        }
-                        else {
-                                        printf("Accept Error");
-                                                    exit(1);
-                                                            }
-                            }
-    void execute() {
-                while (lookahead!=T_eof) {
-                                parser_stack.push(T_stmt);
-                                            switch (lookahead) {
-                                                            case T_int:
-                                                                            case T_char:
-                                                                            case T_variable:
-                                                                                shift();
-                                                                                                reduce();
-                                                                                                            }
-                                                    }
-                    }
+        int getToken() {
+            return token_type;
+        }
+        void setToken(int Token) {
+            token_type = Token;
+        }
+        void setunToken(int Token) {
+            node *ptr = new node;
+            ptr->setToken(Token);
+            this->pointers.push_back(ptr);
+        }
+        node *last_at() {
+            return pointers.back();
+        }
 };
+extern std::stack<node *> _stack;
+extern std::vector<node *> tree_vector;
+extern node *root;
+extern node *present_ptr;
 */
-// Symaboltable.cpp ===================================================================
-enum data_type {
-        D_const,D_int, D_char,D_void,D_proc,D_class
-};
-/*
-   class variable {
-    std::string var_id;
-        int Dtype;
-        public:
-            variable(std::string str, int dtype) {
-                    var_id = str; Dtype = dtype;
-                        }
-                            std::string get_str() {
-                                    return var_id;
-                                        }
-                                        };
-                                        */
+void match(int terminal);
+void parser_init();
+void getNextToken();
 
-class table {
-    protected:
-            std::map<std::string,void *>sub_table;
-                std::map<std::string,llvm::Value *>var_table;
+// Ast ============================================================================
+
+extern llvm::LLVMContext TheContext;
+extern llvm::IRBuilder<> Builder;
+extern std::unique_ptr<llvm::Module> TheModule;
+extern std::map<std::string,llvm::Value *> NamedValues;
+
+class ExprAST{
+public:
+    virtual ~ExprAST(){}
+    virtual llvm::Value *codegen() = 0;
+};
+
+class NumberExprAST:public ExprAST{
+    int Val;
+public:
+    NumberExprAST(int Val) : Val(Val){}
+    llvm::Value *codegen() override;
+};
+
+class VariableExprAST:public ExprAST{
+    std::string Name;
+public:
+    VariableExprAST(const std::string &Name) : Name(Name){}
+    llvm::Value *codegen() override;
+};
+
+class BinaryExprAST : public ExprAST{
+    int Op;
+    std::unique_ptr<ExprAST> LHS,RHS;
     public:
-                    void insert_subtable(std::string str, void * ptr);
-                        void insert_variable(std::string str, llvm::Value *var);
-                            std::string lookup(std::string str);
+    BinaryExprAST(int op,std::unique_ptr<ExprAST>LHS,std::unique_ptr<ExprAST>RHS)
+        :Op(op),LHS(move(LHS)),RHS(move(RHS)){}
+    llvm::Value *codegen() override;    
 };
 
-class global_table : public table {};
-
-class class_table : public table {
-        std::string class_id;
+class CallExprAST : public ExprAST{
+    std::string Callee;
+    std::vector<std::unique_ptr<ExprAST>> Args;
     public:
-            class_table(std::string id);
-                std::string get_id();
+    CallExprAST(const std::string &Callee,std::vector<std::unique_ptr<ExprAST>>Args)
+        :Callee(Callee),Args(std::move(Args)){}
+   
+    llvm::Value *codegen() override;
 };
 
-class fuc_table {
-        std::string fuc_id;
-            std::map<std::string, llvm::Value *>var_table;
+class PrototypeAST{
+    std::string Name;
+    std::vector<std::string> Args;
     public:
-                fuc_table(std::string id);
-                    std::string get_id();
-
-                        void insert_variable(std::string str, llvm::Value *var);
+    PrototypeAST(const std::string &name
+            ,std::vector<std::string>args):Name(name)
+                                           ,Args(std::move(args)){}
+    llvm::Function *codegen();
+    const std::string &getName() const{return Name;}
 };
 
-// Ast.cpp =================================================
-
-static llvm::LLVMContext TheContext;
-static llvm::IRBuilder<> Builder(TheContext);
-static std::unique_ptr<llvm::Module> TheModule;
-static std::map<std::string, llvm::Value *>NamedValues;
-
-class ExprAST {
+class FunctionAST{
+    std::unique_ptr<PrototypeAST>Proto;
+    std::unique_ptr<ExprAST>Body;
     public:
-            virtual ~ExprAST() = default;
-                virtual llvm::Value *codegen() = 0;
+    FunctionAST(std::unique_ptr<PrototypeAST> proto, std::unique_ptr<ExprAST> body)
+    :Proto(std::move(proto)),Body(std::move(body)){}
+    llvm::Function *codegen();
 };
 
-class NumExprAST : public ExprAST {
-        int Val;
-    public:
-            NumExprAST(int Val) :Val(Val) {}
-                llvm::Value *codegen() override;
-};
+llvm::Value *LogErrorV(const char *str);
+std::unique_ptr<ExprAST> LogError(const char *str);
+std::unique_ptr<ExprAST> ParseParenExpr();
+std::unique_ptr<ExprAST> ParseIdentifierExpr();
+std::unique_ptr<ExprAST> ParsePrimary();
 
-class VarExprAST : public ExprAST {
-        std::string Name;
-    public:
-            VarExprAST(const std::string &Name) :Name(Name) {}
-                llvm::Value *codegen() override;
-};
+int GetToPrecedence();
 
-class BinaryExprAST : public ExprAST {
-        int Op;
-            std::unique_ptr<ExprAST> LHS, RHS;
-    public:
-                BinaryExprAST(int Op, std::unique_ptr<ExprAST> LHS, std::unique_ptr<ExprAST> RHS) : Op(Op), LHS(std::move(LHS)), RHS(std::move(RHS)) {}
-                    llvm::Value *codegen() override;
-};
-// Function Call
-class CallExprAST : public ExprAST {
-        std::string Callee;
-            std::vector<std::unique_ptr<ExprAST>> Args;
-    public:
-                CallExprAST(const std::string &Name, std::vector<std::unique_ptr<ExprAST>> Args)
-                            : Callee(Callee), Args(std::move(Args)) {}
-                    llvm::Value *codegen();
-                        const std::string &getName() const { return Callee; }
-};
-// ProtoTypeAST - 
-class PrototypeAST {
-        std::string Name;
-            std::vector<std::string> Args;
-    public:
-                PrototypeAST(const std::string &Name, std::vector<std::string> Args)
-                            :Name(Name), Args(std::move(Args)) {}
-                    llvm::Function *codegen();
-                        const std::string &getName() const { return Name; }
-};
+std::unique_ptr<ExprAST>ParseBinOpRHS(int ExprPrec,std::unique_ptr<ExprAST> LHS);
+std::unique_ptr<ExprAST>ParseExpression();
+std::unique_ptr<PrototypeAST>ParsePrototype();
+std::unique_ptr<FunctionAST>ParseDefinitition();
+std::unique_ptr<FunctionAST>ParseTopLevelExpr();
 
-class FunctionAST {
-        std::unique_ptr<PrototypeAST> Proto;
-            std::unique_ptr<ExprAST> Body;
+void Driver();
 
-    public:
-                FunctionAST(std::unique_ptr<PrototypeAST> Proto,
-                                std::unique_ptr<ExprAST> Body)
-                            : Proto(std::move(Proto)), Body(std::move(Body)) {}
-
-                    const PrototypeAST& getProto() const;
-                        const std::string& getName() const;
-                            llvm::Function *codegen();
-};
-/*
-    token type : keyword , identi , delimiter , Operator
-    */
 // TODO: 프로그램에 필요한 추가 헤더는 여기에서 참조합니다.

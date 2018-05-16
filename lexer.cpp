@@ -1,6 +1,6 @@
 ﻿#include "Gamma.h"
 
-char buffer[32];
+std::string buffer;
 struct token *head;
 struct token *token_p;
 struct token *tail;
@@ -35,7 +35,7 @@ void printTokens() {
 }
 // Keyword ================================================
 // T_NULL=-1, T_int, T_char, T_return, T_if, T_else , T_while,
-char *keyword[] = {
+std::string keyword[] = {
 	"NULL","void","int","char","return","if","else","while","def"
 };
 
@@ -55,7 +55,7 @@ int buffer_cmp(char *str) {
 int iskeyword() {		// keyword search
 	int i;
 	for (i = 0; i < 9; i++) {
-		if (buffer_cmp(keyword[i])) {
+		if (!buffer.compare(keyword[i])) {
 			insertToken(i-1);
 			return 1;
 		}
@@ -66,10 +66,7 @@ int iskeyword() {		// keyword search
 	return 0;
 }
 void init_buffer(){
-	int i;
-	for(i=0;i<32;i++){
-		buffer[i]='\0';
-	}
+    buffer="";
 }
 // ========================================================
 void isbraket(char ch) {
@@ -113,11 +110,11 @@ void isop(char aheadch,FILE *fp) {
 		}
 		break;
 	case '+':
-		insertToken(T_div);
+		insertToken(T_add);
 		fseek(fp,-1L,SEEK_CUR);
 		break;
 	case '-':
-		insertToken(T_div);
+		insertToken(T_sub);
 		fseek(fp,-1L,SEEK_CUR);
 		break;
 	case '%':
@@ -150,7 +147,6 @@ void lexer(FILE *fp) {
 	
 	char aheadch;
 	char ch;
-	int bufptr = 0;
 
 	if (fp == NULL) {
 		printf("error while opening the file\n");
@@ -176,20 +172,16 @@ void lexer(FILE *fp) {
 			insertToken(T_peroid);
 		}
 		else if (isalpha(aheadch)||aheadch=='_'){
-			buffer[bufptr] = aheadch;
-			bufptr++;
+			buffer += aheadch;
 			while((ch=fgetc(fp))){
 				if(isalpha(ch)){
-					buffer[bufptr] = ch;
-					bufptr++;
+					buffer += ch;
 				}
 				else if(isdigit(ch)){
-					buffer[bufptr] = ch;
-					bufptr++;
+					buffer += ch;
 				}
 				else if(ch=='_'){
-					buffer[bufptr] = ch;
-					bufptr++;
+					buffer += ch;
 				}
 				else{
 					break;
@@ -199,18 +191,16 @@ void lexer(FILE *fp) {
 			if(iskeyword()){
 			}
 			else{
+                Symbol_table.insert(buffer,T_variable);
 				insertToken(T_variable);
 			}
-			bufptr=0;
 			init_buffer();
 		}
 		else if(isdigit(aheadch)){
-			buffer[bufptr] = aheadch;
-			bufptr++;
+			buffer += aheadch;
 			while((ch=fgetc(fp))){
 				if(isdigit(ch)){
-					buffer[bufptr] = ch;
-					bufptr++;
+					buffer += ch;
 				}
 				else if(isalpha(ch)){
 					printf("isdigit : Error");
@@ -225,9 +215,9 @@ void lexer(FILE *fp) {
 				}
 			}
 			fseek(fp,-1L,SEEK_CUR);
+            Symbol_table.insert(buffer,T_const);
 			init_buffer();
 			insertToken(T_const);
-			bufptr=0;
 		}
 	}
 	insertToken(T_eof);

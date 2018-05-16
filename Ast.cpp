@@ -1,5 +1,5 @@
 #include "Gamma.h"
-
+/*
 llvm::Value *NumExprAST::codegen() {
 	return llvm::ConstantInt::get(llvm::Type::getInt32Ty(TheContext),Val);
 }
@@ -77,3 +77,4 @@ llvm::Function *FunctionAST::codegen() {
 	TheFunction->eraseFromParent();
 	return nullptr;
 }
+*/

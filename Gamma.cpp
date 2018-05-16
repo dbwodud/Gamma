@@ -5,6 +5,7 @@
 //#include "KaleidoscopeJIT.h"
 //======================================
 //static std::unique_ptr<KaleidoscopeJIT> TheJIT;
+symbol_table Symbol_table;
 
 int main(int argc,char *argv[]) {
     std::cout << argv[1] << std::endl;
@@ -16,12 +17,12 @@ int main(int argc,char *argv[]) {
     lexer(fp);
     fclose(fp);
     printTokens();
-    LLparser();
+    TheModule=llvm::make_unique<llvm::Module>("My Cool jit",TheContext);
+    Driver();
 
     //llvm::InitializeNativeTarget();
     //InitializeNativeTargetAsmPrinter();
     //InitializeNativeTargetAsmParser();
     //TheJIT = std::make_unique<KaleidoscopeJIT>();
-                                    
     return 0;
 }
