@@ -1,2 +1,6 @@
-def hello(a,b)
-   a+b 
+def sin(x)
+def cos(y)
+
+def hello(a,b){
+    sin(a)+cos(b);
+}

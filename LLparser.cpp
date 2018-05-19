@@ -269,9 +269,12 @@ std::unique_ptr<FunctionAST>ParseDefinition(){
     std::unique_ptr<PrototypeAST> Proto = ParsePrototype();
     if(!Proto)
         return nullptr;
-
-    if(auto E = ParseExpression())
+    if(lookahead->token_type==T_lbrace){
+        match(T_lbrace);
+        auto E = ParseExpression(); match(T_semicolon);
+        match(T_rbrace);
         return llvm::make_unique<FunctionAST>(std::move(Proto),std::move(E));
+    }
     return nullptr;
 }
 
