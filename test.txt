@@ -1,6 +1,3 @@
-def sin(x)
-def cos(y)
-
-def hello(a,b){
-    sin(a)+cos(b);
+def hi(a,b){
+    a;
 }

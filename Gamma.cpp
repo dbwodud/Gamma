@@ -13,10 +13,12 @@ int main(int argc,char *argv[]) {
         std::cout << "No input File" << std::endl;
         exit(1);
     }
+
     FILE *fp = fopen(argv[1], "r");
+    
     lexer(fp);
-    fclose(fp);
     printTokens();
+    //fclose(fp);
     TheModule=llvm::make_unique<llvm::Module>("My Cool jit",TheContext);
     Driver();
 

@@ -67,7 +67,7 @@ extern symbol_table Symbol_table;
 enum token_type {
     T_NULL = -1,T_void, T_int, T_char, T_return, T_if, T_else, T_while,T_def, // Keyword
     T_assign, T_add, T_sub, T_mul, T_div, T_mod, T_equal, T_notequal,   // operation
-    T_const, T_variable, // const,variable
+    T_const, T_variable, // const,variable 17
     T_lbrace, T_rbrace, T_lbracket, T_rbracket, T_lparen, T_rparen, // { , } , [ , ] , ( , )
     T_peroid, // , 
     T_semicolon, // ;
@@ -95,7 +95,6 @@ void isop(char aheadch, FILE *fp);
 void init_buffer();
 
 extern std::string buffer;
-//extern char buffer[32];
 extern struct token *head;
 extern struct token *token_p;
 extern struct token *tail;
@@ -171,8 +170,8 @@ class CallExprAST : public ExprAST{
     std::string Callee;
     std::vector<std::unique_ptr<ExprAST>> Args;
     public:
-    CallExprAST(const std::string &Callee,std::vector<std::unique_ptr<ExprAST>>Args)
-        :Callee(Callee),Args(std::move(Args)){}
+    CallExprAST(const std::string &Callee,std::vector<std::unique_ptr<ExprAST>>args)
+        :Callee(Callee),Args(std::move(args)){}
    
     llvm::Value *codegen() override;
 };
@@ -190,10 +189,10 @@ class PrototypeAST{
 
 class FunctionAST{
     std::unique_ptr<PrototypeAST>Proto;
-    std::unique_ptr<ExprAST>Body;
+    std::vector<std::unique_ptr<ExprAST>>Bodys;
     public:
-    FunctionAST(std::unique_ptr<PrototypeAST> proto, std::unique_ptr<ExprAST> body)
-    :Proto(std::move(proto)),Body(std::move(body)){}
+    FunctionAST(std::unique_ptr<PrototypeAST> proto, std::vector<std::unique_ptr<ExprAST>>bodys)
+    :Proto(std::move(proto)),Bodys(std::move(bodys)){}
     llvm::Function *codegen();
 };
 

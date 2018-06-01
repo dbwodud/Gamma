@@ -13,6 +13,7 @@ std::vector<std::string> sym_list;
 std::vector<std::string>::iterator iter;
 
 void parser_init() {
+    printf("hello");
 	lookahead = head;
     sym_list=Symbol_table.get_vector();
     iter = sym_list.begin();
@@ -117,15 +118,18 @@ llvm::Function *FunctionAST::codegen(){
     NamedValues.clear();
     for (auto &Arg : TheFunction->args())
         NamedValues[Arg.getName()] = &Arg;
-   
-    if (llvm::Value *RetVal = Body->codegen()) {
+    for(auto &Body : Bodys){
+        if (Bodys.back()==Body) {
                 // Finish off the function.
-        Builder.CreateRet(RetVal);
+            Builder.CreateRet(Body->codegen());
 
                        // Validate the generated code, checking for consistency.
-        verifyFunction(*TheFunction);
+            verifyFunction(*TheFunction);
 
-        return TheFunction;
+            return TheFunction;
+        }else{
+            Body->codegen();
+        }
     }
 
     TheFunction->eraseFromParent();
@@ -194,6 +198,7 @@ std::unique_ptr<ExprAST>ParseIdentifierExpr(){
 std::unique_ptr<ExprAST> ParsePrimary(){
     switch(lookahead->token_type){
         default:
+            printf("%d\n",lookahead->token_type);
             return LogError("unknown token when expecting an expression");
         case T_variable:
             return ParseIdentifierExpr();
@@ -217,6 +222,8 @@ std::unique_ptr<ExprAST>ParseBinOpRHS(int ExprPrec,std::unique_ptr<ExprAST> LHS)
             return LHS;
         int BinOp = lookahead->token_type;
         getNextToken();
+        if(lookahead->token_type==T_semicolon)
+            return nullptr;
 
         auto RHS = ParsePrimary();
         if(!RHS)
@@ -271,9 +278,20 @@ std::unique_ptr<FunctionAST>ParseDefinition(){
         return nullptr;
     if(lookahead->token_type==T_lbrace){
         match(T_lbrace);
-        auto E = ParseExpression(); match(T_semicolon);
+        std::vector<std::unique_ptr<ExprAST>>bodys;
+        while(1){
+            if(lookahead->token_type==T_semicolon){
+                match(T_semicolon);
+                break;
+            }
+            if(auto E = ParseExpression()){
+                bodys.push_back(std::move(E));
+            }else{
+                break;
+            }
+        }
         match(T_rbrace);
-        return llvm::make_unique<FunctionAST>(std::move(Proto),std::move(E));
+        return llvm::make_unique<FunctionAST>(std::move(Proto),std::move(bodys));
     }
     return nullptr;
 }
@@ -281,7 +299,9 @@ std::unique_ptr<FunctionAST>ParseDefinition(){
 std::unique_ptr<FunctionAST>ParseTopLevelExpr(){
     if(auto E = ParseExpression()){
         std::unique_ptr<PrototypeAST> Proto = llvm::make_unique<PrototypeAST>("__annon_expr",std::vector<std::string>());
-        return llvm::make_unique<FunctionAST>(move(Proto),std::move(E));
+        std::vector<std::unique_ptr<ExprAST>>bodys;
+        bodys.push_back(std::move(E));
+        return llvm::make_unique<FunctionAST>(move(Proto),std::move(bodys));
     }
     return nullptr;
 }
