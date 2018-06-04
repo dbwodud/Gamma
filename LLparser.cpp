@@ -13,7 +13,6 @@ std::vector<std::string> sym_list;
 std::vector<std::string>::iterator iter;
 
 void parser_init() {
-    printf("hello");
 	lookahead = head;
     sym_list=Symbol_table.get_vector();
     iter = sym_list.begin();
