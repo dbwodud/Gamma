@@ -197,14 +197,17 @@ std::unique_ptr<ExprAST>ParseIdentifierExpr(){
 std::unique_ptr<ExprAST> ParsePrimary(){
     switch(lookahead->token_type){
         default:
-            printf("%d\n",lookahead->token_type);
-            return LogError("unknown token when expecting an expression");
+//            printf("%d\n",lookahead->token_type);
+//            return LogError("unknown token when expecting an expression");
+              return nullptr;
         case T_variable:
             return ParseIdentifierExpr();
         case T_const:
             return ParseNumberExpr();
         case T_lparen:
             return ParseParenExpr();
+        case T_semicolon:
+            match(T_semicolon);
     }
 }
 
@@ -221,8 +224,6 @@ std::unique_ptr<ExprAST>ParseBinOpRHS(int ExprPrec,std::unique_ptr<ExprAST> LHS)
             return LHS;
         int BinOp = lookahead->token_type;
         getNextToken();
-        if(lookahead->token_type==T_semicolon)
-            return nullptr;
 
         auto RHS = ParsePrimary();
         if(!RHS)
@@ -279,12 +280,9 @@ std::unique_ptr<FunctionAST>ParseDefinition(){
         match(T_lbrace);
         std::vector<std::unique_ptr<ExprAST>>bodys;
         while(1){
-            if(lookahead->token_type==T_semicolon){
-                match(T_semicolon);
-                break;
-            }
             if(auto E = ParseExpression()){
                 bodys.push_back(std::move(E));
+                match(T_semicolon);
             }else{
                 break;
             }
@@ -334,6 +332,7 @@ void Driver(){
     while(1){
         switch(lookahead->token_type){
         case T_eof:
+            exit(1);
             return;
         case T_def:
             HandleDefinition();
