@@ -209,6 +209,7 @@ std::unique_ptr<ExprAST> ParsePrimary(){
         case T_semicolon:
             match(T_semicolon);
     }
+    return nullptr;
 }
 
 int GetTokPrecedence(){
@@ -294,13 +295,18 @@ std::unique_ptr<FunctionAST>ParseDefinition(){
 }
 
 std::unique_ptr<FunctionAST>ParseTopLevelExpr(){
-    if(auto E = ParseExpression()){
-        std::unique_ptr<PrototypeAST> Proto = llvm::make_unique<PrototypeAST>("__annon_expr",std::vector<std::string>());
-        std::vector<std::unique_ptr<ExprAST>>bodys;
-        bodys.push_back(std::move(E));
-        return llvm::make_unique<FunctionAST>(move(Proto),std::move(bodys));
+    std::unique_ptr<PrototypeAST> Proto = llvm::make_unique<PrototypeAST>("__annon_expr",std::vector<std::string>());
+    std::vector<std::unique_ptr<ExprAST>>bodys;
+    while(1){
+        if(auto E = ParseExpression()){
+            bodys.push_back(std::move(E));
+        }else{
+            break;
+        }
     }
-    return nullptr;
+    if(bodys.empty())
+        return nullptr;
+    return llvm::make_unique<FunctionAST>(std::move(Proto),std::move(bodys));
 }
 
 void HandleDefinition(){
