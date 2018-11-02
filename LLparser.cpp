@@ -197,8 +197,6 @@ std::unique_ptr<ExprAST>ParseIdentifierExpr(){
 std::unique_ptr<ExprAST> ParsePrimary(){
     switch(lookahead->token_type){
         default:
-//            printf("%d\n",lookahead->token_type);
-//            return LogError("unknown token when expecting an expression");
               return nullptr;
         case T_variable:
             return ParseIdentifierExpr();
@@ -312,9 +310,7 @@ std::unique_ptr<FunctionAST>ParseTopLevelExpr(){
 void HandleDefinition(){
     if(auto FnAST = ParseDefinition()){
         if(auto *FnIR = FnAST->codegen()){
-            std::cout<<"Read function definition."<<std::endl;
             FnIR->print(llvm::errs());
-            fprintf(stderr,"\n");
         }
     }else{
         getNextToken();
@@ -324,10 +320,7 @@ void HandleDefinition(){
 void HandleTopLevelExpression(){
     if(auto FnAST=ParseTopLevelExpr()){
         if(auto *FnIR = FnAST->codegen()){
-            fprintf(stderr,"Read top-level expression:");
             FnIR->print(llvm::errs());
-            fprintf(stderr,"\n");
-            std::cout<<"Parsed a top-level expr"<<std::endl;
         }
     }else{
         getNextToken();
