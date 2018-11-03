@@ -1,3 +1,5 @@
+
+#include "../include/KaleidoscopeJIT.h"
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Scalar/GVN.h"
 #include "llvm/ADT/APFloat.h"
@@ -22,6 +24,8 @@
 #include<stack>
 #include<list>
 #include<memory>
+#include<cassert>
+#include<exception>
 // Symboltable.cpp =================================================================
 class symbol_table{
     std::vector<std::string>symbol_list;
@@ -82,32 +86,6 @@ extern struct token *token_p;
 extern struct token *tail;
 extern struct token *lookahead;
 
-// LLparser.cpp =====================================================================
-/* NODE Tree 
-class node {
-int token_type;
-    std::vector<node*> pointers;
-    public:
-        int getToken() {
-            return token_type;
-        }
-        void setToken(int Token) {
-            token_type = Token;
-        }
-        void setunToken(int Token) {
-            node *ptr = new node;
-            ptr->setToken(Token);
-            this->pointers.push_back(ptr);
-        }
-        node *last_at() {
-            return pointers.back();
-        }
-};
-extern std::stack<node *> _stack;
-extern std::vector<node *> tree_vector;
-extern node *root;
-extern node *present_ptr;
-*/
 void match(int terminal);
 void parser_init();
 void getNextToken();
@@ -118,7 +96,11 @@ extern llvm::LLVMContext TheContext;
 extern llvm::IRBuilder<> Builder;
 extern std::unique_ptr<llvm::Module> TheModule;
 extern std::map<std::string,llvm::Value *> NamedValues;
-static llvm::FunctionPassManager *Global_FP;
+extern std::unique_ptr<llvm::legacy::FunctionPassManager> TheFPM;
+extern std::unique_ptr<llvm::orc::KaleidoscopeJIT> TheJIT;
+llvm::Function *getFunction(std::string Name);
+void InitializeModuleAndPassManager(void);
+
 class ExprAST{
 public:
     virtual ~ExprAST(){}
@@ -177,6 +159,8 @@ class FunctionAST{
     :Proto(std::move(proto)),Bodys(std::move(bodys)){}
     llvm::Function *codegen();
 };
+
+extern std::map<std::string,std::unique_ptr<PrototypeAST>> FunctionProtos;
 
 llvm::Value *LogErrorV(const char *str);
 std::unique_ptr<ExprAST> LogError(const char *str);

@@ -2,10 +2,6 @@
 
 std::map<int,int>BinopPrecedence;
 
-llvm::LLVMContext TheContext;
-llvm::IRBuilder<> Builder(TheContext);
-std::unique_ptr<llvm::Module> TheModule;
-std::map<std::string,llvm::Value *> NamedValues;
 
 int cnt = 1;
 
@@ -25,6 +21,18 @@ void parser_init() {
 void getNextToken(){
     lookahead=lookahead->next;
     cnt++;
+}
+
+llvm::Function *getFunction(std::string Name){
+    if(auto *F = TheModule->getFunction(Name))
+        return F;
+
+    auto FI = FunctionProtos.find(Name);
+    if (FI != FunctionProtos.end())
+        return FI->second->codegen();
+
+    // If no existing prototype exists, return null.
+    return nullptr;
 }
 
 void match(int terminal) {
@@ -73,7 +81,7 @@ llvm::Value *BinaryExprAST::codegen(){
 }
 
 llvm::Value *CallExprAST::codegen(){
-    llvm::Function *CalleeF = TheModule->getFunction(Callee);
+    llvm::Function *CalleeF = getFunction(Callee);
     if(!CalleeF)
         return LogErrorV("Unknow Function referenced");
 
@@ -104,27 +112,24 @@ llvm::Function *PrototypeAST::codegen(){
 }
 
 llvm::Function *FunctionAST::codegen(){
-    llvm::Function *TheFunction = TheModule->getFunction(Proto->getName());
-
-    if(!TheFunction)
-        TheFunction=Proto->codegen();
+    auto &P = *Proto;
+    FunctionProtos[Proto->getName()] = std::move(Proto);
+    llvm::Function *TheFunction = getFunction(P.getName());
     if(!TheFunction)
         return nullptr;
+
     llvm::BasicBlock *BB = llvm::BasicBlock::Create(TheContext, "entry", TheFunction);
     Builder.SetInsertPoint(BB);
 
-//Record the function arguments in the NamedValues map.
     NamedValues.clear();
-    for (auto &Arg : TheFunction->args())
+    for(auto &Arg : TheFunction->args())
         NamedValues[Arg.getName()] = &Arg;
     for(auto &Body : Bodys){
         if (Bodys.back()==Body) {
-                // Finish off the function.
             Builder.CreateRet(Body->codegen());
 
-                       // Validate the generated code, checking for consistency.
             verifyFunction(*TheFunction);
-
+            TheFPM->run(*TheFunction);
             return TheFunction;
         }else{
             Body->codegen();
@@ -174,23 +179,21 @@ std::unique_ptr<ExprAST>ParseIdentifierExpr(){
     if(lookahead->token_type != T_lparen)
         return llvm::make_unique<VariableExprAST>(IdName);
     match(T_lparen);
+
     std::vector<std::unique_ptr<ExprAST>> Args;
-    if(lookahead->token_type != T_rparen){
-        while(1){
-            if(auto Arg = ParseExpression())
-                Args.push_back(std::move(Arg));
-            else
-                return nullptr;
+    while(1){
+        if(lookahead->token_type==T_rparen)
+            break;
+        
+        if(auto Arg = ParseExpression())
+            Args.push_back(std::move(Arg));
+        else
+            return nullptr;
 
-            if(lookahead->token_type==T_rparen)
-                break;
-
+        if(lookahead->token_type==T_peroid)
             match(T_peroid);
-        }
     }
-
     match(T_rparen);
-
     return llvm::make_unique<CallExprAST>(IdName,std::move(Args));
 }
 
@@ -256,17 +259,17 @@ std::unique_ptr<PrototypeAST>ParsePrototype(){
 
     std::vector<std::string> ArgNames;
     while(1){
+        if(lookahead->token_type==T_rparen){
+            match(T_rparen);
+            break;
+        }
         match(T_variable);
         ArgNames.push_back(*iter);
         iter++;
         if(lookahead->token_type==T_peroid){
             match(T_peroid);
-        }else{
-            break;
         }
     }
-
-    match(T_rparen);
     
     return llvm::make_unique<PrototypeAST>(FnName,std::move(ArgNames));
 }
@@ -293,7 +296,7 @@ std::unique_ptr<FunctionAST>ParseDefinition(){
 }
 
 std::unique_ptr<FunctionAST>ParseTopLevelExpr(){
-    std::unique_ptr<PrototypeAST> Proto = llvm::make_unique<PrototypeAST>("__annon_expr",std::vector<std::string>());
+    std::unique_ptr<PrototypeAST> Proto = llvm::make_unique<PrototypeAST>("__anon_expr",std::vector<std::string>());
     std::vector<std::unique_ptr<ExprAST>>bodys;
     while(1){
         if(auto E = ParseExpression()){
@@ -302,7 +305,7 @@ std::unique_ptr<FunctionAST>ParseTopLevelExpr(){
             break;
         }
     }
-    if(bodys.empty())
+    if(bodys.size()==0)
         return nullptr;
     return llvm::make_unique<FunctionAST>(std::move(Proto),std::move(bodys));
 }
@@ -310,7 +313,11 @@ std::unique_ptr<FunctionAST>ParseTopLevelExpr(){
 void HandleDefinition(){
     if(auto FnAST = ParseDefinition()){
         if(auto *FnIR = FnAST->codegen()){
+            fprintf(stderr, "Read function definition:");
             FnIR->print(llvm::errs());
+            fprintf(stderr, "\n");
+            TheJIT->addModule(std::move(TheModule));
+            InitializeModuleAndPassManager();
         }
     }else{
         getNextToken();
@@ -319,19 +326,27 @@ void HandleDefinition(){
 
 void HandleTopLevelExpression(){
     if(auto FnAST=ParseTopLevelExpr()){
-        if(auto *FnIR = FnAST->codegen()){
-            FnIR->print(llvm::errs());
+        if(FnAST->codegen()){
+            auto H = TheJIT->addModule(std::move(TheModule));
+            InitializeModuleAndPassManager();
+       
+            auto ExprSymbol = TheJIT->findSymbol("__anon_expr");
+            assert(ExprSymbol && "Function not found");
+            int (*FP)() = (int (*)())(intptr_t)llvm::cantFail(ExprSymbol.getAddress());
+            fprintf(stderr, "Evaluated to %d\n", FP());
+
+            TheJIT->removeModule(H); 
         }
     }else{
         getNextToken();
     }
 }
+
 void Driver(){
     parser_init();
     while(1){
         switch(lookahead->token_type){
         case T_eof:
-            exit(1);
             return;
         case T_def:
             HandleDefinition();
