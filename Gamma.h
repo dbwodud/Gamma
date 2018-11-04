@@ -14,6 +14,7 @@
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Verifier.h"
 #include "llvm/Support/TargetSelect.h"
+
 // standard library ================================================================
 #include<iostream>
 #include<stdlib.h>
@@ -58,7 +59,7 @@ enum token_type {
     T_peroid, // , 
     T_semicolon, // ;
     T_eof, // END of file
-    T_stmt,T_expr,T_term,T_form
+    T_colon
 };
 
 struct token {
@@ -160,6 +161,14 @@ class FunctionAST{
     llvm::Function *codegen();
 };
 
+class IfExprAST : public ExprAST{
+    std::unique_ptr<ExprAST> Cond,Then,Else;
+  public:
+    IfExprAST(std::unique_ptr<ExprAST> Cond, std::unique_ptr<ExprAST> Then,std::unique_ptr<ExprAST> Else) : Cond(std::move(Cond)),Then(std::move(Then)),Else(std::move(Else)){}
+    llvm::Value *codegen() override;
+};
+
+
 extern std::map<std::string,std::unique_ptr<PrototypeAST>> FunctionProtos;
 
 llvm::Value *LogErrorV(const char *str);
@@ -172,6 +181,7 @@ int GetToPrecedence();
 
 std::unique_ptr<ExprAST>ParseBinOpRHS(int ExprPrec,std::unique_ptr<ExprAST> LHS);
 std::unique_ptr<ExprAST>ParseExpression();
+std::unique_ptr<ExprAST>ParseIfExpr();
 std::unique_ptr<PrototypeAST>ParsePrototype();
 std::unique_ptr<FunctionAST>ParseDefinitition();
 std::unique_ptr<FunctionAST>ParseTopLevelExpr();

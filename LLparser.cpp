@@ -12,10 +12,12 @@ void parser_init() {
 	lookahead = head;
     sym_list=Symbol_table.get_vector();
     iter = sym_list.begin();
-    BinopPrecedence[T_add]=10;
-    BinopPrecedence[T_sub]=20;
-    BinopPrecedence[T_mul]=30;
-    BinopPrecedence[T_div]=40;
+    BinopPrecedence[T_equal]=1;
+    BinopPrecedence[T_notequal]=1;
+    BinopPrecedence[T_add]=2;
+    BinopPrecedence[T_sub]=3;
+    BinopPrecedence[T_mul]=4;
+    BinopPrecedence[T_div]=5;
 }
 
 void getNextToken(){
@@ -74,7 +76,13 @@ llvm::Value *BinaryExprAST::codegen(){
         case T_mul:
             return Builder.CreateMul(L,R,"multmp");
         case T_div:
-            return Builder.CreateUDiv(L,R,"divtmp");
+            return Builder.CreateFDiv(L,R,"divtmp");
+        case T_equal:
+            L = Builder.CreateICmpEQ(L,R,"eqtmp");
+            return Builder.CreateZExt(L,llvm::Type::getInt32Ty(TheContext),"booltmp");
+        case T_notequal:
+            L = Builder.CreateICmpNE(L,R,"neqtmp");
+            return Builder.CreateZExt(L,llvm::Type::getInt32Ty(TheContext),"booltmp");
         default:
             return 0;
     }
@@ -139,6 +147,50 @@ llvm::Function *FunctionAST::codegen(){
     TheFunction->eraseFromParent();
     return nullptr;
 }
+
+llvm::Value *IfExprAST::codegen(){
+    llvm::Value *CondV = Cond->codegen();
+    if(!CondV)
+        return nullptr;
+    CondV = Builder.CreateICmpNE(CondV, llvm::ConstantInt::get(llvm::Type::getInt32Ty(TheContext),0), "ifcond");
+
+    llvm::Function *TheFunction = Builder.GetInsertBlock()->getParent();
+
+    llvm::BasicBlock *ThenBB = llvm::BasicBlock::Create(TheContext, "then", TheFunction);
+    llvm::BasicBlock *ElseBB = llvm::BasicBlock::Create(TheContext, "else");
+    llvm::BasicBlock *MergeBB = llvm::BasicBlock::Create(TheContext, "ifcont");
+
+    Builder.CreateCondBr(CondV, ThenBB, ElseBB);
+
+  // Emit then value.
+    Builder.SetInsertPoint(ThenBB);
+
+    llvm::Value *ThenV = Then->codegen();
+    if (!ThenV)
+        return nullptr;
+
+    Builder.CreateBr(MergeBB);
+    ThenBB = Builder.GetInsertBlock();
+
+    TheFunction->getBasicBlockList().push_back(ElseBB);
+    Builder.SetInsertPoint(ElseBB);
+
+    llvm::Value *ElseV = Else->codegen();
+    if (!ElseV)
+        return nullptr;
+
+    Builder.CreateBr(MergeBB);
+    ElseBB = Builder.GetInsertBlock();
+
+    TheFunction->getBasicBlockList().push_back(MergeBB);
+    Builder.SetInsertPoint(MergeBB);
+    llvm::PHINode *PN = Builder.CreatePHI(llvm::Type::getInt32Ty(TheContext), 2, "iftmp");
+
+    PN->addIncoming(ThenV, ThenBB);
+    PN->addIncoming(ElseV, ElseBB);
+    return PN;
+}
+
 std::unique_ptr<ExprAST> LogError(const char *str){
     fprintf(stderr,"LogError : %s \n",str);
     return nullptr;
@@ -197,6 +249,25 @@ std::unique_ptr<ExprAST>ParseIdentifierExpr(){
     return llvm::make_unique<CallExprAST>(IdName,std::move(Args));
 }
 
+std::unique_ptr<ExprAST>ParseIfExpr(){
+    match(T_if);
+    auto Cond = ParseExpression();
+    if(!Cond)
+        return nullptr;
+    match(T_colon);
+    auto Then = ParseExpression();
+    if(!Then)
+        return nullptr;
+    match(T_semicolon);
+    match(T_else);
+    match(T_colon);
+    auto Else = ParseExpression();
+    if(!Else)
+        return nullptr;
+
+    return llvm::make_unique<IfExprAST>(std::move(Cond),std::move(Then),std::move(Else));
+}
+
 std::unique_ptr<ExprAST> ParsePrimary(){
     switch(lookahead->token_type){
         default:
@@ -207,8 +278,11 @@ std::unique_ptr<ExprAST> ParsePrimary(){
             return ParseNumberExpr();
         case T_lparen:
             return ParseParenExpr();
+        case T_if:
+            return ParseIfExpr();
         case T_semicolon:
             match(T_semicolon);
+            break;
     }
     return nullptr;
 }
@@ -329,12 +403,10 @@ void HandleTopLevelExpression(){
         if(FnAST->codegen()){
             auto H = TheJIT->addModule(std::move(TheModule));
             InitializeModuleAndPassManager();
-       
             auto ExprSymbol = TheJIT->findSymbol("__anon_expr");
             assert(ExprSymbol && "Function not found");
             int (*FP)() = (int (*)())(intptr_t)llvm::cantFail(ExprSymbol.getAddress());
             fprintf(stderr, "Evaluated to %d\n", FP());
-
             TheJIT->removeModule(H); 
         }
     }else{

@@ -168,6 +168,9 @@ void lexer(FILE *fp) {
 		else if (aheadch == ';') {
 			insertToken(T_semicolon);
 		}
+        else if (aheadch == ':') {
+            insertToken(T_colon);
+        }
 		else if (aheadch == ',') {
 			insertToken(T_peroid);
 		}

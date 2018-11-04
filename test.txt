@@ -1,6 +1,10 @@
 def hi(a,b){
-    a+b;
+    a*
+    if a!=b:
+        a-b;
+    else:
+        a+b;
 }
 
-hi(1,3);
-hi(2,4);
+hi(3,5)
+
