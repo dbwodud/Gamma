@@ -1,4 +1,0 @@
-/home/jaeyoungyu/gamma/Gamma/CMakeFiles/rebuild_cache.dir
-/home/jaeyoungyu/gamma/Gamma/CMakeFiles/edit_cache.dir
-/home/jaeyoungyu/gamma/Gamma/CMakeFiles/intrinsics_gen.dir
-/home/jaeyoungyu/gamma/Gamma/CMakeFiles/Gamma.dir

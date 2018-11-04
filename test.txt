@@ -1,10 +1,6 @@
-def hi(a,b){
-    a*
-    if a!=b:
-        a-b;
-    else:
-        a+b;
+def fib(sum,i,n){
+    sum+for(i=1;i<10;4)
+        sum+i+1;
 }
 
-hi(3,5)
-
+fib(0,1,10)

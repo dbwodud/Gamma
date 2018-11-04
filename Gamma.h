@@ -52,8 +52,8 @@ extern symbol_table Symbol_table;
 // lexer.cpp =======================================================================
 
 enum token_type {
-    T_NULL = -1,T_void, T_int, T_char, T_return, T_if, T_else, T_while,T_def, // Keyword
-    T_assign, T_add, T_sub, T_mul, T_div, T_mod, T_equal, T_notequal,   // operation
+    T_NULL = -1,T_void, T_int, T_char, T_return, T_if, T_else, T_for,T_def, // Keyword
+    T_assign, T_add, T_sub, T_mul, T_div, T_mod, T_equal, T_notequal, T_cmpULT, T_cmpUGT,   // operation
     T_const, T_variable, // const,variable 17
     T_lbrace, T_rbrace, T_lbracket, T_rbracket, T_lparen, T_rparen, // { , } , [ , ] , ( , )
     T_peroid, // , 
@@ -168,6 +168,18 @@ class IfExprAST : public ExprAST{
     llvm::Value *codegen() override;
 };
 
+class ForExprAST : public ExprAST{
+    std::string VarName;
+    std::unique_ptr<ExprAST> Start, End, Step, Body;
+
+public:
+  ForExprAST(const std::string &VarName, std::unique_ptr<ExprAST> Start,
+             std::unique_ptr<ExprAST> End, std::unique_ptr<ExprAST> Step,
+             std::unique_ptr<ExprAST> Body)
+    : VarName(VarName), Start(std::move(Start)), End(std::move(End)),
+      Step(std::move(Step)), Body(std::move(Body)) {}
+    llvm::Value *codegen() override;
+};
 
 extern std::map<std::string,std::unique_ptr<PrototypeAST>> FunctionProtos;
 

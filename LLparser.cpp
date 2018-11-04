@@ -9,9 +9,13 @@ std::vector<std::string> sym_list;
 std::vector<std::string>::iterator iter;
 
 void parser_init() {
-	lookahead = head;
+// 렉서 토큰 라인 준비
+    lookahead = head;
     sym_list=Symbol_table.get_vector();
     iter = sym_list.begin();
+// 연산자 우선순위
+    BinopPrecedence[T_cmpUGT]=1;
+    BinopPrecedence[T_cmpULT]=1;
     BinopPrecedence[T_equal]=1;
     BinopPrecedence[T_notequal]=1;
     BinopPrecedence[T_add]=2;
@@ -82,6 +86,12 @@ llvm::Value *BinaryExprAST::codegen(){
             return Builder.CreateZExt(L,llvm::Type::getInt32Ty(TheContext),"booltmp");
         case T_notequal:
             L = Builder.CreateICmpNE(L,R,"neqtmp");
+            return Builder.CreateZExt(L,llvm::Type::getInt32Ty(TheContext),"booltmp");
+        case T_cmpULT:
+            L = Builder.CreateICmpULT(L,R,"cmptmp");
+            return Builder.CreateZExt(L,llvm::Type::getInt32Ty(TheContext),"booltmp");
+        case T_cmpUGT:
+            L = Builder.CreateICmpUGT(L,R,"cmptmp");
             return Builder.CreateZExt(L,llvm::Type::getInt32Ty(TheContext),"booltmp");
         default:
             return 0;
@@ -162,7 +172,6 @@ llvm::Value *IfExprAST::codegen(){
 
     Builder.CreateCondBr(CondV, ThenBB, ElseBB);
 
-  // Emit then value.
     Builder.SetInsertPoint(ThenBB);
 
     llvm::Value *ThenV = Then->codegen();
@@ -189,6 +198,61 @@ llvm::Value *IfExprAST::codegen(){
     PN->addIncoming(ThenV, ThenBB);
     PN->addIncoming(ElseV, ElseBB);
     return PN;
+}
+
+llvm::Value *ForExprAST::codegen(){
+    llvm::Value *StartVal = Start -> codegen();
+    if(!StartVal)
+        return nullptr;
+
+    llvm::Function *TheFunction = Builder.GetInsertBlock()->getParent();
+    llvm::BasicBlock *PreheaderBB = Builder.GetInsertBlock();
+    llvm::BasicBlock *LoopBB = llvm::BasicBlock::Create(TheContext,"loop",TheFunction);
+
+    Builder.CreateBr(LoopBB);
+    Builder.SetInsertPoint(LoopBB);
+
+    llvm::PHINode *Variable = Builder.CreatePHI(llvm::Type::getInt32Ty(TheContext),2, VarName.c_str());
+    Variable->addIncoming(StartVal, PreheaderBB);
+    llvm::Value *OldVal = NamedValues[VarName];
+    NamedValues[VarName] = Variable;
+
+    if(!Body->codegen())
+        return nullptr;
+
+    llvm::Value *StepVal = nullptr;
+    if (Step) {
+        StepVal = Step->codegen();
+    if (!StepVal)
+        return nullptr;
+    } else {
+        StepVal = llvm::ConstantInt::get(llvm::Type::getInt32Ty(TheContext), 1);
+    }
+
+    llvm::Value *NextVar = Builder.CreateAdd(Variable, StepVal, "nextvar");
+
+    // Compute the end condition.
+    llvm::Value *EndCond = End->codegen();
+    if (!EndCond)
+          return nullptr;
+
+    EndCond = Builder.CreateICmpNE(EndCond, llvm::ConstantInt::get(llvm::Type::getInt32Ty(TheContext), 0), "loopcond");
+    llvm::BasicBlock *LoopEndBB = Builder.GetInsertBlock();
+    llvm::BasicBlock *AfterBB = llvm::BasicBlock::Create(TheContext, "afterloop", TheFunction);
+
+    Builder.CreateCondBr(EndCond, LoopBB, AfterBB);
+
+    Builder.SetInsertPoint(AfterBB);
+    Variable->addIncoming(NextVar, LoopEndBB);
+
+    if (OldVal)
+        NamedValues[VarName] = OldVal;
+    else
+        NamedValues.erase(VarName);
+
+    //return llvm::Constant::getNullValue(llvm::Type::getInt32Ty(TheContext));
+    return Variable;
+
 }
 
 std::unique_ptr<ExprAST> LogError(const char *str){
@@ -268,6 +332,37 @@ std::unique_ptr<ExprAST>ParseIfExpr(){
     return llvm::make_unique<IfExprAST>(std::move(Cond),std::move(Then),std::move(Else));
 }
 
+std::unique_ptr<ExprAST> ParseForExpr(){
+    match(T_for);
+    match(T_lparen);
+    match(T_variable);
+    std::string IdName = *iter;
+    iter++;
+    match(T_assign);
+
+    auto Start = ParseExpression();
+    if(!Start)
+        return nullptr;
+
+    match(T_semicolon);
+    auto End = ParseExpression();
+    if(!End)
+        return nullptr;
+    std::unique_ptr<ExprAST> Step;
+    match(T_semicolon);
+    Step = ParseExpression();
+    if(!Step)
+        return nullptr;
+
+    match(T_rparen);
+    
+    auto Body = ParseExpression();
+    if(!Body)
+        return nullptr;
+
+    return llvm::make_unique<ForExprAST>(IdName,std::move(Start),std::move(End),std::move(Step),std::move(Body));
+}
+
 std::unique_ptr<ExprAST> ParsePrimary(){
     switch(lookahead->token_type){
         default:
@@ -280,6 +375,8 @@ std::unique_ptr<ExprAST> ParsePrimary(){
             return ParseParenExpr();
         case T_if:
             return ParseIfExpr();
+        case T_for:
+            return ParseForExpr();
         case T_semicolon:
             match(T_semicolon);
             break;

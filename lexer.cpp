@@ -36,7 +36,7 @@ void printTokens() {
 // Keyword ================================================
 // T_NULL=-1, T_int, T_char, T_return, T_if, T_else , T_while,
 std::string keyword[] = {
-	"NULL","void","int","char","return","if","else","while","def"
+	"NULL","void","int","char","return","if","else","for","def"
 };
 
 int buffer_cmp(char *str) {
@@ -100,14 +100,21 @@ void isbraket(char ch) {
 void isop(char aheadch,FILE *fp) {
 	char forword_char = fgetc(fp);
 	switch (aheadch) {
+    case '>':
+        insertToken(T_cmpUGT);
+        fseek(fp,-1L,SEEK_CUR);
+        break;
+    case '<':
+        insertToken(T_cmpULT);
+        fseek(fp,-1L,SEEK_CUR);
+        break;
 	case '!':
 		if (forword_char == '=') {
 			insertToken(T_notequal);
-		}
-		else {
-			insertToken(T_div);
-			fseek(fp,-1L,SEEK_CUR);
-		}
+		}else{
+            fprintf(stderr,"LEXER ERROR IN Not equal");
+            exit(1);
+        }
 		break;
 	case '+':
 		insertToken(T_add);
@@ -142,7 +149,6 @@ void isop(char aheadch,FILE *fp) {
 }
 
 void lexer(FILE *fp) {
-
 	initToken();
 	
 	char aheadch;
@@ -162,7 +168,7 @@ void lexer(FILE *fp) {
 		else if(aheadch == '{' || aheadch == '}' || aheadch == '[' || aheadch == ']' || aheadch == '(' || aheadch == ')'){
 			isbraket(aheadch);
 		}
-		else if(aheadch == '!' || aheadch == '+' || aheadch == '-' || aheadch == '%' || aheadch == '/' || aheadch == '=' || aheadch == '*') {
+		else if(aheadch == '!' || aheadch == '+' || aheadch == '-' || aheadch == '%' || aheadch == '/' || aheadch == '=' || aheadch == '*' || aheadch == '<' || aheadch == '>') {
 			isop(aheadch,fp);
 		}
 		else if (aheadch == ';') {
