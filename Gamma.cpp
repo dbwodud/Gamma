@@ -4,7 +4,7 @@ symbol_table Symbol_table;
 llvm::LLVMContext TheContext;
 llvm::IRBuilder<> Builder(TheContext);
 std::unique_ptr<llvm::Module> TheModule;
-std::map<std::string,llvm::Value *> NamedValues;
+std::map<std::string,llvm::AllocaInst *> NamedValues;
 std::unique_ptr<llvm::legacy::FunctionPassManager> TheFPM;
 std::unique_ptr<llvm::orc::KaleidoscopeJIT> TheJIT;
 std::map<std::string,std::unique_ptr<PrototypeAST>> FunctionProtos;
@@ -19,7 +19,9 @@ void InitializeModuleAndPassManager(){
     TheFPM->add(llvm::createReassociatePass());
     TheFPM->add(llvm::createGVNPass());
     TheFPM->add(llvm::createCFGSimplificationPass());
-
+    TheFPM->add(llvm::createPromoteMemoryToRegisterPass());
+    TheFPM->add(llvm::createInstructionCombiningPass());
+    TheFPM->add(llvm::createReassociatePass());
     TheFPM->doInitialization();
 }
 

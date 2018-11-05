@@ -1,7 +1,4 @@
-
 #include "../include/KaleidoscopeJIT.h"
-#include "llvm/Transforms/Scalar.h"
-#include "llvm/Transforms/Scalar/GVN.h"
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/IR/BasicBlock.h"
@@ -9,12 +6,18 @@
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/Instructions.h"
 #include "llvm/IR/LLVMContext.h"
+#include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Verifier.h"
 #include "llvm/Support/TargetSelect.h"
-
+#include "llvm/Target/TargetMachine.h"
+#include "llvm/Transforms/InstCombine/InstCombine.h"
+#include "llvm/Transforms/Scalar.h"
+#include "llvm/Transforms/Scalar/GVN.h"
+#include "llvm/Transforms/Utils.h"
 // standard library ================================================================
 #include<iostream>
 #include<stdlib.h>
@@ -27,6 +30,7 @@
 #include<memory>
 #include<cassert>
 #include<exception>
+#include<utility>
 // Symboltable.cpp =================================================================
 class symbol_table{
     std::vector<std::string>symbol_list;
@@ -96,12 +100,12 @@ void getNextToken();
 extern llvm::LLVMContext TheContext;
 extern llvm::IRBuilder<> Builder;
 extern std::unique_ptr<llvm::Module> TheModule;
-extern std::map<std::string,llvm::Value *> NamedValues;
+extern std::map<std::string,llvm::AllocaInst *> NamedValues;
 extern std::unique_ptr<llvm::legacy::FunctionPassManager> TheFPM;
 extern std::unique_ptr<llvm::orc::KaleidoscopeJIT> TheJIT;
 llvm::Function *getFunction(std::string Name);
 void InitializeModuleAndPassManager(void);
-
+llvm::AllocaInst *CreateEntryBlockAlloca(llvm::Function *TheFunction,const std::string &VarName);
 class ExprAST{
 public:
     virtual ~ExprAST(){}
@@ -119,7 +123,9 @@ class VariableExprAST:public ExprAST{
     std::string Name;
 public:
     VariableExprAST(const std::string &Name) : Name(Name){}
+    
     llvm::Value *codegen() override;
+    const std::string &getName() const {return Name;}
 };
 
 class BinaryExprAST : public ExprAST{

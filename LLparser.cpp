@@ -8,12 +8,19 @@ int cnt = 1;
 std::vector<std::string> sym_list;
 std::vector<std::string>::iterator iter;
 
+llvm::AllocaInst *CreateEntryBlockAlloca(llvm::Function *TheFunction,const std::string &VarName){
+    llvm::IRBuilder<> TmpB(&TheFunction->getEntryBlock(),TheFunction->getEntryBlock().begin());
+    return TmpB.CreateAlloca(llvm::Type::getInt32Ty(TheContext),0,VarName.c_str());
+}
+
 void parser_init() {
 // 렉서 토큰 라인 준비
     lookahead = head;
     sym_list=Symbol_table.get_vector();
     iter = sym_list.begin();
 // 연산자 우선순위
+
+    BinopPrecedence[T_assign]=1;
     BinopPrecedence[T_cmpUGT]=1;
     BinopPrecedence[T_cmpULT]=1;
     BinopPrecedence[T_equal]=1;
@@ -63,10 +70,32 @@ llvm::Value *VariableExprAST::codegen(){
     llvm::Value *V = NamedValues[Name];
     if(!V)
         LogErrorV("Unknown variable name");
-    return V;
+    return Builder.CreateLoad(V,Name.c_str());
 }
 
 llvm::Value *BinaryExprAST::codegen(){
+
+    if(Op == T_assign){
+        VariableExprAST *LHSE = static_cast<VariableExprAST *>(LHS.get());
+        if(!LHSE){
+            fprintf(stderr,"destination of '=' must be a variable");
+            exit(1);
+        }
+        llvm::Value *Val = RHS->codegen();
+        if(!Val)
+            return nullptr;
+
+        llvm::Value *Variable = NamedValues[LHSE->getName()];
+        if(!Variable){
+            fprintf(stderr,"unknown variable name");
+            exit(1);
+        }
+
+        Builder.CreateStore(Val,Variable);
+        
+        return Val;
+    }
+
     llvm::Value *L = LHS->codegen();
     llvm::Value *R = RHS->codegen();
 
@@ -140,8 +169,11 @@ llvm::Function *FunctionAST::codegen(){
     Builder.SetInsertPoint(BB);
 
     NamedValues.clear();
-    for(auto &Arg : TheFunction->args())
-        NamedValues[Arg.getName()] = &Arg;
+    for(auto &Arg : TheFunction->args()){
+        llvm::AllocaInst *Alloca = CreateEntryBlockAlloca(TheFunction,Arg.getName());
+        Builder.CreateStore(&Arg,Alloca);
+        NamedValues[Arg.getName()]=Alloca;
+    }
     for(auto &Body : Bodys){
         if (Bodys.back()==Body) {
             Builder.CreateRet(Body->codegen());
@@ -201,25 +233,27 @@ llvm::Value *IfExprAST::codegen(){
 }
 
 llvm::Value *ForExprAST::codegen(){
+    
+    llvm::Function *TheFunction = Builder.GetInsertBlock()->getParent();
+
+    llvm::AllocaInst *Alloca = CreateEntryBlockAlloca(TheFunction,VarName);
+
     llvm::Value *StartVal = Start -> codegen();
     if(!StartVal)
         return nullptr;
+    Builder.CreateStore(StartVal,Alloca);
 
-    llvm::Function *TheFunction = Builder.GetInsertBlock()->getParent();
-    llvm::BasicBlock *PreheaderBB = Builder.GetInsertBlock();
     llvm::BasicBlock *LoopBB = llvm::BasicBlock::Create(TheContext,"loop",TheFunction);
-
+    
     Builder.CreateBr(LoopBB);
     Builder.SetInsertPoint(LoopBB);
-
-    llvm::PHINode *Variable = Builder.CreatePHI(llvm::Type::getInt32Ty(TheContext),2, VarName.c_str());
-    Variable->addIncoming(StartVal, PreheaderBB);
-    llvm::Value *OldVal = NamedValues[VarName];
-    NamedValues[VarName] = Variable;
+    
+    llvm::AllocaInst *OldVal = NamedValues[VarName];
+    NamedValues[VarName] = Alloca;
 
     if(!Body->codegen())
         return nullptr;
-
+    
     llvm::Value *StepVal = nullptr;
     if (Step) {
         StepVal = Step->codegen();
@@ -229,21 +263,22 @@ llvm::Value *ForExprAST::codegen(){
         StepVal = llvm::ConstantInt::get(llvm::Type::getInt32Ty(TheContext), 1);
     }
 
-    llvm::Value *NextVar = Builder.CreateAdd(Variable, StepVal, "nextvar");
-
     // Compute the end condition.
     llvm::Value *EndCond = End->codegen();
     if (!EndCond)
           return nullptr;
 
+    llvm::Value *CurVar = Builder.CreateLoad(Alloca,VarName.c_str());
+    llvm::Value *NextVar = Builder.CreateAdd(CurVar,StepVal,"nextvar");
+    Builder.CreateStore(NextVar,Alloca);
+
     EndCond = Builder.CreateICmpNE(EndCond, llvm::ConstantInt::get(llvm::Type::getInt32Ty(TheContext), 0), "loopcond");
-    llvm::BasicBlock *LoopEndBB = Builder.GetInsertBlock();
+    
     llvm::BasicBlock *AfterBB = llvm::BasicBlock::Create(TheContext, "afterloop", TheFunction);
 
     Builder.CreateCondBr(EndCond, LoopBB, AfterBB);
 
     Builder.SetInsertPoint(AfterBB);
-    Variable->addIncoming(NextVar, LoopEndBB);
 
     if (OldVal)
         NamedValues[VarName] = OldVal;
@@ -251,8 +286,7 @@ llvm::Value *ForExprAST::codegen(){
         NamedValues.erase(VarName);
 
     //return llvm::Constant::getNullValue(llvm::Type::getInt32Ty(TheContext));
-    return Variable;
-
+    return llvm::Constant::getNullValue(llvm::Type::getInt32Ty(TheContext));
 }
 
 std::unique_ptr<ExprAST> LogError(const char *str){
