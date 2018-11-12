@@ -31,6 +31,7 @@
 #include<cassert>
 #include<exception>
 #include<utility>
+
 // Symboltable.cpp =================================================================
 class symbol_table{
     std::vector<std::string>symbol_list;
@@ -56,7 +57,7 @@ extern symbol_table Symbol_table;
 // lexer.cpp =======================================================================
 
 enum token_type {
-    T_NULL = -1,T_void, T_int, T_char, T_return, T_if, T_else, T_for,T_def, // Keyword
+    T_NULL = -1,T_void, T_int, T_char, T_return, T_if, T_else, T_for,T_def,T_extern, // Keyword
     T_assign, T_add, T_sub, T_mul, T_div, T_mod, T_equal, T_notequal, T_cmpULT, T_cmpUGT,   // operation
     T_const, T_variable, // const,variable 17
     T_lbrace, T_rbrace, T_lbracket, T_rbracket, T_lparen, T_rparen, // { , } , [ , ] , ( , )

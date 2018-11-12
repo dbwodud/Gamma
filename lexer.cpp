@@ -34,9 +34,9 @@ void printTokens() {
 	}
 }
 // Keyword ================================================
-// T_NULL=-1, T_int, T_char, T_return, T_if, T_else , T_while,
+// T_NULL=-1, T_int, T_char, T_return, T_if, T_else , for , def , extern
 std::string keyword[] = {
-	"NULL","void","int","char","return","if","else","for","def"
+	"NULL","void","int","char","return","if","else","for","def","extern"
 };
 
 int buffer_cmp(char *str) {
@@ -54,7 +54,7 @@ int buffer_cmp(char *str) {
 
 int iskeyword() {		// keyword search
 	int i;
-	for (i = 0; i < 9; i++) {
+	for (i = 0; i < 10; i++) {
 		if (!buffer.compare(keyword[i])) {
 			insertToken(i-1);
 			return 1;

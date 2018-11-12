@@ -418,6 +418,11 @@ std::unique_ptr<ExprAST> ParsePrimary(){
     return nullptr;
 }
 
+std::unique_ptr<PrototypeAST>ParseExtern(){
+    getNextToken();
+    return ParsePrototype();
+}
+
 int GetTokPrecedence(){
     int TokPrec = BinopPrecedence[lookahead->token_type];
     if(TokPrec<=0)return -1;
@@ -544,7 +549,18 @@ void HandleTopLevelExpression(){
         getNextToken();
     }
 }
-
+void HandleExtern(){
+    if(auto ProtoAST = ParseExtern()){
+        if(auto *FnIR = ProtoAST->codegen()){
+            fprintf(stderr,"Read Extern:");
+            FnIR->print(llvm::errs());
+            fprintf(stderr,"\n");
+            FunctionProtos[ProtoAST->getName()]=std::move(ProtoAST);
+        }
+    }else{
+        getNextToken();
+    }
+}
 void Driver(){
     parser_init();
     while(1){
@@ -553,6 +569,9 @@ void Driver(){
             return;
         case T_def:
             HandleDefinition();
+            break;
+        case T_extern:
+            HandleExtern();
             break;
         default:
             HandleTopLevelExpression();

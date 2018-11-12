@@ -1,4 +1,18 @@
 #include "Gamma.h"
+
+
+/// putchard - putchar that takes a double and returns 0.
+extern "C" int putchard(double X) {
+  fputc((char)X, stderr);
+  return 0;
+}
+
+/// printd - printf that takes a double prints it as "%f\n", returning 0.
+extern "C" int printd(double X) {
+  fprintf(stderr, "%f\n", X);
+  return 0;
+}
+
 symbol_table Symbol_table;
 
 llvm::LLVMContext TheContext;
