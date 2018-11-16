@@ -1,4 +1,4 @@
-#Gamma
+# Gamma
 
 명령어
 
