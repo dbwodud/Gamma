@@ -12,7 +12,7 @@ Linux
 ### 라이브러리
 LLVM
 
-# 실행
-![img1](./images/img1.png)
+# 이미지 
 ![img2](./images/img2.png)
+![img1](./images/img1.png)
 
