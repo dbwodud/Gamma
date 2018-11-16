@@ -11,3 +11,7 @@ g++ \`llvm-config --cxxflags --ldflags --system-libs --libs core\` Gamma.cpp lex
 Linux 
 ### 라이브러리
 LLVM
+
+# 실행
+
+
