@@ -6,7 +6,7 @@ g++ \`llvm-config --cxxflags --ldflags --system-libs --libs core\` Gamma.cpp lex
 </code>
 
 ### 사용 패턴
-팩토리 패턴 사용
+팩토리 패턴
 ### 개발 환경
 Linux 
 ### 라이브러리
