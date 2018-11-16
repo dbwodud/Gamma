@@ -12,7 +12,7 @@ Linux
 ### 라이브러리
 LLVM
 
-# 이미지 
+# 실행 화면 
 ![img2](./images/img2.png)
 ![img1](./images/img1.png)
 
