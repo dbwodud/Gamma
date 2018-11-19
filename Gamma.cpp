@@ -20,23 +20,10 @@ llvm::IRBuilder<> Builder(TheContext);
 std::unique_ptr<llvm::Module> TheModule;
 std::map<std::string,llvm::AllocaInst *> NamedValues;
 std::unique_ptr<llvm::legacy::FunctionPassManager> TheFPM;
-std::unique_ptr<llvm::orc::KaleidoscopeJIT> TheJIT;
 std::map<std::string,std::unique_ptr<PrototypeAST>> FunctionProtos;
 
 void InitializeModuleAndPassManager(){
-
     TheModule = llvm::make_unique<llvm::Module>("my cool jit", TheContext);
-    TheModule->setDataLayout(TheJIT->getTargetMachine().createDataLayout());
-
-    TheFPM = llvm::make_unique<llvm::legacy::FunctionPassManager>(TheModule.get());
-    TheFPM->add(llvm::createInstructionCombiningPass());
-    TheFPM->add(llvm::createReassociatePass());
-    TheFPM->add(llvm::createGVNPass());
-    TheFPM->add(llvm::createCFGSimplificationPass());
-    TheFPM->add(llvm::createPromoteMemoryToRegisterPass());
-    TheFPM->add(llvm::createInstructionCombiningPass());
-    TheFPM->add(llvm::createReassociatePass());
-    TheFPM->doInitialization();
 }
 
 int main(int argc,char *argv[]) {
@@ -51,12 +38,60 @@ int main(int argc,char *argv[]) {
     
     lexer(fp);
     printTokens();
-    llvm::InitializeNativeTarget();
-    llvm::InitializeNativeTargetAsmPrinter();
-    llvm::InitializeNativeTargetAsmParser();
-    TheJIT = llvm::make_unique<llvm::orc::KaleidoscopeJIT>();
     InitializeModuleAndPassManager();
     
     Driver();
+
+    llvm::InitializeAllTargetInfos();
+    llvm::InitializeAllTargets();
+    llvm::InitializeAllTargetMCs();
+    llvm::InitializeAllAsmParsers();
+    llvm::InitializeAllAsmPrinters();
+
+    auto TargetTriple = llvm::sys::getDefaultTargetTriple();
+    TheModule->setTargetTriple(TargetTriple);
+
+    std::string Error;
+    auto Target = llvm::TargetRegistry::lookupTarget(TargetTriple, Error);
+
+  // Print an error and exit if we couldn't find the requested target.
+  // This generally occurs if we've forgotten to initialise the
+  // TargetRegistry or we have a bogus target triple.
+    if (!Target) {
+        llvm::errs() << Error;
+        return 1;
+    }
+
+    auto CPU = "generic";
+    auto Features = "";
+
+    llvm::TargetOptions opt;
+    auto RM = llvm::Optional<llvm::Reloc::Model>();
+    auto TheTargetMachine = Target->createTargetMachine(TargetTriple, CPU, Features, opt, RM);
+
+    TheModule->setDataLayout(TheTargetMachine->createDataLayout());
+
+    auto Filename = "output.o";
+    std::error_code EC;
+    llvm::raw_fd_ostream dest(Filename, EC, llvm::sys::fs::F_None);
+
+    if (EC) {
+        llvm::errs() << "Could not open file: " << EC.message();
+        return 1;
+    }
+
+    llvm::legacy::PassManager pass;
+    auto FileType = llvm::TargetMachine::CGFT_ObjectFile;
+
+    if (TheTargetMachine->addPassesToEmitFile(pass,dest,FileType)) {
+        llvm::errs() << "TheTargetMachine can't emit a file of this type";
+        return 1;
+    }
+
+    pass.run(*TheModule);
+    dest.flush();
+
+    llvm::outs() << "Wrote " << Filename << "\n";
+
     return 0;
 }

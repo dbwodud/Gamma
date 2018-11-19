@@ -2,7 +2,6 @@
 
 std::map<int,int>BinopPrecedence;
 
-
 int cnt = 1;
 
 std::vector<std::string> sym_list;
@@ -74,7 +73,6 @@ llvm::Value *VariableExprAST::codegen(){
 }
 
 llvm::Value *BinaryExprAST::codegen(){
-
     if(Op == T_assign){
         VariableExprAST *LHSE = static_cast<VariableExprAST *>(LHS.get());
         if(!LHSE){
@@ -179,7 +177,6 @@ llvm::Function *FunctionAST::codegen(){
             Builder.CreateRet(Body->codegen());
 
             verifyFunction(*TheFunction);
-            TheFPM->run(*TheFunction);
             return TheFunction;
         }else{
             Body->codegen();
@@ -356,7 +353,6 @@ std::unique_ptr<ExprAST>ParseIfExpr(){
     auto Then = ParseExpression();
     if(!Then)
         return nullptr;
-    match(T_semicolon);
     match(T_else);
     match(T_colon);
     auto Else = ParseExpression();
@@ -411,9 +407,6 @@ std::unique_ptr<ExprAST> ParsePrimary(){
             return ParseIfExpr();
         case T_for:
             return ParseForExpr();
-        case T_semicolon:
-            match(T_semicolon);
-            break;
     }
     return nullptr;
 }
@@ -494,7 +487,6 @@ std::unique_ptr<FunctionAST>ParseDefinition(){
         while(1){
             if(auto E = ParseExpression()){
                 bodys.push_back(std::move(E));
-                match(T_semicolon);
             }else{
                 break;
             }
@@ -526,8 +518,6 @@ void HandleDefinition(){
             fprintf(stderr, "Read function definition:");
             FnIR->print(llvm::errs());
             fprintf(stderr, "\n");
-            TheJIT->addModule(std::move(TheModule));
-            InitializeModuleAndPassManager();
         }
     }else{
         getNextToken();
@@ -536,15 +526,7 @@ void HandleDefinition(){
 
 void HandleTopLevelExpression(){
     if(auto FnAST=ParseTopLevelExpr()){
-        if(FnAST->codegen()){
-            auto H = TheJIT->addModule(std::move(TheModule));
-            InitializeModuleAndPassManager();
-            auto ExprSymbol = TheJIT->findSymbol("__anon_expr");
-            assert(ExprSymbol && "Function not found");
-            int (*FP)() = (int (*)())(intptr_t)llvm::cantFail(ExprSymbol.getAddress());
-            fprintf(stderr, "Evaluated to %d\n", FP());
-            TheJIT->removeModule(H); 
-        }
+        FnAST->codegen();
     }else{
         getNextToken();
     }

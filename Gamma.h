@@ -1,23 +1,25 @@
 #include "../include/KaleidoscopeJIT.h"
 #include "llvm/ADT/APFloat.h"
+#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Function.h"
-#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Verifier.h"
+#include "llvm/Support/FileSystem.h"
+#include "llvm/Support/Host.h"
+#include "llvm/Support/raw_ostream.h"
+#include "llvm/Support/TargetRegistry.h"
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Target/TargetMachine.h"
-#include "llvm/Transforms/InstCombine/InstCombine.h"
-#include "llvm/Transforms/Scalar.h"
-#include "llvm/Transforms/Scalar/GVN.h"
-#include "llvm/Transforms/Utils.h"
+#include "llvm/Target/TargetOptions.h"
 // standard library ================================================================
 #include<iostream>
 #include<stdlib.h>
@@ -31,6 +33,7 @@
 #include<cassert>
 #include<exception>
 #include<utility>
+#include <system_error>
 
 // Symboltable.cpp =================================================================
 class symbol_table{
@@ -57,9 +60,9 @@ extern symbol_table Symbol_table;
 // lexer.cpp =======================================================================
 
 enum token_type {
-    T_NULL = -1,T_void, T_int, T_char, T_return, T_if, T_else, T_for,T_def,T_extern, // Keyword
+    T_NULL = -1,T_void, T_int, T_var, T_return, T_if, T_else, T_for,T_def,T_extern,T_binary,T_unary,// Keyword
     T_assign, T_add, T_sub, T_mul, T_div, T_mod, T_equal, T_notequal, T_cmpULT, T_cmpUGT,   // operation
-    T_const, T_variable, // const,variable 17
+    T_const, T_variable, // const,variable 22
     T_lbrace, T_rbrace, T_lbracket, T_rbracket, T_lparen, T_rparen, // { , } , [ , ] , ( , )
     T_peroid, // , 
     T_semicolon, // ;
@@ -151,12 +154,27 @@ class CallExprAST : public ExprAST{
 class PrototypeAST{
     std::string Name;
     std::vector<std::string> Args;
+    bool IsOperator;
+    unsigned Precedence;
+
     public:
-    PrototypeAST(const std::string &name
-            ,std::vector<std::string>args):Name(name)
-                                           ,Args(std::move(args)){}
+    PrototypeAST(
+            const std::string &name,
+            std::vector<std::string>args,
+            bool IsOperator = false,
+            unsigned Prec = 0):Name(name),Args(std::move(args)),IsOperator(IsOperator),Precedence(Prec){}
     llvm::Function *codegen();
     const std::string &getName() const{return Name;}
+
+    bool isUnaryOp() const {return IsOperator && Args.size() == 1;}
+    bool isBinaryOp() const {return IsOperator && Args.size() == 2;}
+
+    char getOperatorName() const{
+        assert(isUnaryOp()||isBinaryOp());
+        return Name[Name.size()-1];
+    }
+
+    unsigned getBinaryPrecedence() const { return Precedence; }
 };
 
 class FunctionAST{
